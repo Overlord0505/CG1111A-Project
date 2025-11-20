@@ -1,0 +1,420 @@
+#include "MeMCore.h"
+
+//for RGB LED
+MeRGBLed led(0,30); //for LED
+
+//---- LINE SENSOR ----
+MeLineFollower lineFinder(PORT_2);
+
+//for 2-4 Decoder
+#define input_1A A2 //Select Input 1A at analog pin A2
+#define input_1B A3 //Select Input 1B at analog pin A3
+
+// Ultrasonic Sensor
+#define ULTRASONIC 12      // Ultrasonic sensor pin
+#define TIMEOUT 2000       // maximum wait time for the ultrasonic sensor
+#define SPEED_OF_SOUND 340.0  
+
+float getUltDist(){
+  pinMode(ULTRASONIC, OUTPUT);
+  digitalWrite(ULTRASONIC, LOW);
+  delayMicroseconds(2);
+  digitalWrite(ULTRASONIC, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(ULTRASONIC, LOW);
+  pinMode(ULTRASONIC, INPUT);
+  long duration = pulseIn(ULTRASONIC, HIGH, TIMEOUT);
+  if (duration > 0){
+    float distance = duration / 2.0 / 1000000 * SPEED_OF_SOUND * 100;
+    return distance;
+  } else {
+      return -1.0;
+  }
+}
+
+//---- IR CONTROLS ----
+#define IR A1
+
+int getIR() {
+  analogWrite(input_1A, 0);
+  analogWrite(input_1B, 0);
+  delayMicroseconds(25);
+  int on = analogRead(IR); // emitter on reading
+  analogWrite(input_1A, 0);
+  analogWrite(input_1B, 255);
+  delayMicroseconds(25);
+  int off = analogRead(IR); // ambient reading for error correction
+  return abs(on - off); //return the absolute difference
+}
+
+//---- MOTOR CONTROLS ----
+#define TURNING_TIME 340 //Turning Time Duration in ms, TO FINE TUNE
+#define DOUBLE_FORWARD 800
+MeDCMotor leftMotor(M1); //assign M1 to Left Motor
+MeDCMotor rightMotor(M2);//assign M2 to Right Motor
+uint8_t motorSpeed = 255; //define motor speed (max 255, min 1)
+
+void gostraightpls() {
+  float ultdist = getUltDist();
+  //Serial.println(ultdist); //for debugging
+  int IRreadout = getIR();
+  //Serial.println(IRreadout); //for debugging
+
+  //rely on Ult sensor first -- if fails, check IR as last resort
+  //check infinity
+  if(ultdist == -1.0) { // timeout on Ultsensor
+    if (IRreadout <= 100) { //inifinity of IR
+      return; //do nothing
+    } else { //check IR value
+      if (IRreadout > 150) { // too close to the wall, veer right
+        rightMotor.run(50);
+        delay(15);
+        rightMotor.run(motorSpeed);
+      } else { //within target range
+        return;
+      }
+    }
+
+  //Target Range: 9-12cm from wall -- at center
+  
+  } else if (ultdist < 7.0) { //too close to the wall, veer left
+      leftMotor.run(50);
+      delay(20);
+      leftMotor.run(-motorSpeed);
+  
+  } else if (ultdist > 10.5) { //too far from the wall, veer right
+      rightMotor.run(50);
+      delay(20);
+      rightMotor.run(motorSpeed);
+  } else if (IRreadout > 150) { // too close to the wall, veer right
+        rightMotor.run(50);
+        delay(15);
+        rightMotor.run(motorSpeed);
+  } else {
+      return;
+  }
+}
+
+//---- Buzzer ----
+
+/*
+Credits:
+Melody and Duration Arrays and Buzzer Code From:
+HiBit. (2022, November 19). Playing popular songs with Arduino and a buzzer. Arduino Project Hub.
+https://projecthub.arduino.cc/tmekinyan/playing-popular-songs-with-arduino-and-a-buzzer-546f4a
+*/
+
+MeBuzzer buzzer;
+#define NOTE_B0  31
+#define NOTE_C1  33
+#define NOTE_CS1 35
+#define NOTE_D1  37
+#define NOTE_DS1 39
+#define NOTE_E1  41
+#define NOTE_F1  44
+#define NOTE_FS1 46
+#define NOTE_G1  49
+#define NOTE_GS1 52
+#define NOTE_A1  55
+#define NOTE_AS1 58
+#define NOTE_B1  62
+#define NOTE_C2  65
+#define NOTE_CS2 69
+#define NOTE_D2  73
+#define NOTE_DS2 78
+#define NOTE_E2  82
+#define NOTE_F2  87
+#define NOTE_FS2 93
+#define NOTE_G2  98
+#define NOTE_GS2 104
+#define NOTE_A2  110
+#define NOTE_AS2 117
+#define NOTE_B2  123
+#define NOTE_C3  131
+#define NOTE_CS3 139
+#define NOTE_D3  147
+#define NOTE_DS3 156
+#define NOTE_E3  165
+#define NOTE_F3  175
+#define NOTE_FS3 185
+#define NOTE_G3  196
+#define NOTE_GS3 208
+#define NOTE_A3  220
+#define NOTE_AS3 233
+#define NOTE_B3  247
+#define NOTE_C4  262
+#define NOTE_CS4 277
+#define NOTE_D4  294
+#define NOTE_DS4 311
+#define NOTE_E4  330
+#define NOTE_F4  349
+#define NOTE_FS4 370
+#define NOTE_G4  392
+#define NOTE_GS4 415
+#define NOTE_A4  440
+#define NOTE_AS4 466
+#define NOTE_B4  494
+#define NOTE_C5  523
+#define NOTE_CS5 554
+#define NOTE_D5  587
+#define NOTE_DS5 622
+#define NOTE_E5  659
+#define NOTE_F5  698
+#define NOTE_FS5 740
+#define NOTE_G5  784
+#define NOTE_GS5 831
+#define NOTE_A5  880
+#define NOTE_AS5 932
+#define NOTE_B5  988
+#define NOTE_C6  1047
+#define NOTE_CS6 1109
+#define NOTE_D6  1175
+#define NOTE_DS6 1245
+#define NOTE_E6  1319
+#define NOTE_F6  1397
+#define NOTE_FS6 1480
+#define NOTE_G6  1568
+#define NOTE_GS6 1661
+#define NOTE_A6  1760
+#define NOTE_AS6 1865
+#define NOTE_B6  1976
+#define NOTE_C7  2093
+#define NOTE_CS7 2217
+#define NOTE_D7  2349
+#define NOTE_DS7 2489
+#define NOTE_E7  2637
+#define NOTE_F7  2794
+#define NOTE_FS7 2960
+#define NOTE_G7  3136
+#define NOTE_GS7 3322
+#define NOTE_A7  3520
+#define NOTE_AS7 3729
+#define NOTE_B7  3951
+#define NOTE_C8  4186
+#define NOTE_CS8 4435
+#define NOTE_D8  4699
+#define NOTE_DS8 4978
+#define REST 0
+
+int startup[] {
+  NOTE_DS6, NOTE_DS5, NOTE_AS5, NOTE_GS5, NOTE_DS5, NOTE_DS6, NOTE_AS5
+};
+
+int startup_duration[]{
+  8, 8, 8, 8, 8, 8, 8
+
+};
+
+int melody[] = {
+  NOTE_GS6, NOTE_DS6, NOTE_GS5, NOTE_AS5
+};
+
+int durations[] = {
+  8, 8, 8, 8
+};
+
+//---- COLOUR SENSOR CONTROLS ----
+// Define time delay before taking another LDR reading
+#define LDRWait 10 //in milliseconds
+// Define time delay before changing to another LED colour
+#define RGBWait 100
+//Ports Used
+#define LDR A0   //LDR sensor pin at analog A0
+
+int colourArray[] = {0,0,0}; //Float Array to store LDR Readings
+
+void setLED(int colourIndex) {
+  // Select one of the 3 LED channels using decoder input combinations
+  switch (colourIndex) {
+    case 0: // RED LED
+      analogWrite(input_1A, 255);
+      analogWrite(input_1B, 0);
+      break;
+    case 1: // GREEN LED
+      analogWrite(input_1A, 0);
+      analogWrite(input_1B, 255);
+      break;
+    case 2: // BLUE LED
+      analogWrite(input_1A, 255);
+      analogWrite(input_1B, 255);
+      break;
+  }
+}
+
+void getColourData(int colourArray[]){
+  //Collect 5 readings for each color
+  int currentReading;
+  for (int i = 0; i < 3; i++) {
+    setLED(i);
+    delay(RGBWait);
+    long sum = 0;
+    for (int j = 0; j < 5; j++) {
+      currentReading = analogRead(LDR);
+      sum += currentReading;
+      delay(LDRWait);
+    }
+    int average = sum / 5;
+    //Serial.println(average); //commented out, use for debugging
+    colourArray[i] = average;
+    analogWrite(input_1A, 0);
+    analogWrite(input_1B, 0);
+    delay(RGBWait);
+  }
+}
+
+void determineColour(int colourArray[]){
+
+  //check white
+  if (colourArray[1] >= 860) {
+    led.setColor(255,255,255);
+    led.show();
+    //stop on the spot
+    leftMotor.stop();
+    rightMotor.stop();
+    //to play tone
+    
+    //---- Modified Code from HiBit ----
+    int size = sizeof(durations) / sizeof(int);
+    for (int note = 0; note < size; note++) {
+      //to calculate the note duration, take one second divided by the note type.
+      //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
+      int duration = 1000 / durations[note];
+      buzzer.tone(melody[note], duration);
+      //to distinguish the notes, set a minimum time between them.
+      int pauseBetweenNotes = duration * 1.10;
+      delay(pauseBetweenNotes);
+      //stop the tone playing:
+      buzzer.noTone();
+    }
+    //---- end of modified code from HiBit ----
+
+    exit(0); //to end the program
+  } else if (colourArray[0] > 540){ //to differentiate Red, Orange and Pink
+    if (colourArray[1] > 800){ //check pink
+      //for Visual Feedback
+      led.setColor(255,0,255);
+      led.show();
+      //2 SUCCESSIVE LEFT TURNS
+      //1st L Turn
+      leftMotor.run(motorSpeed);
+      rightMotor.run(motorSpeed);
+      delay(TURNING_TIME);
+      leftMotor.stop();
+      rightMotor.stop();
+      //Go Straight
+      leftMotor.run(-motorSpeed);
+      rightMotor.run(motorSpeed);
+      delay(DOUBLE_FORWARD + 20); //NEED TO FINE TUNE
+      leftMotor.stop();
+      rightMotor.stop();
+      //2nd L Turn
+      leftMotor.run(motorSpeed);
+      rightMotor.run(motorSpeed);
+      delay(TURNING_TIME);
+      leftMotor.stop();
+      rightMotor.stop();
+      return;
+    } else if (colourArray[1] > 700){ //check orange
+      //for Visual Feedback
+      led.setColor(255,255,0);
+      led.show();
+      //execute 180 TURN
+      leftMotor.run(motorSpeed);
+      rightMotor.run(motorSpeed);
+      delay(2 * TURNING_TIME);
+      leftMotor.stop();
+      rightMotor.stop();
+      return;
+    } else { //if all fails, its Red
+      //for Visual Feedback
+      led.setColor(255,0,0);
+      led.show();
+      //execute LEFT TURN
+      leftMotor.run(motorSpeed);
+      rightMotor.run(motorSpeed);
+      delay(TURNING_TIME);
+      leftMotor.stop();
+      rightMotor.stop();
+      return;
+    }
+  } else { //will run if Green or Blue
+    if (colourArray[2] >= 700){ //condition for Blue
+      led.setColor(0,0,255);
+      led.show();
+      //2 SUCCESSIVE RIGHT TURNS
+      //1st R Turn
+      leftMotor.run(-motorSpeed);
+      rightMotor.run(-motorSpeed);
+      delay(TURNING_TIME);
+      leftMotor.stop();
+      rightMotor.stop();
+      //Go Straight
+      leftMotor.run(-motorSpeed);
+      rightMotor.run(motorSpeed);
+      delay(DOUBLE_FORWARD); //NEED TO FINE TUNE
+      leftMotor.stop();
+      rightMotor.stop();
+      //2nd R Turn
+      leftMotor.run(-motorSpeed);
+      rightMotor.run(-motorSpeed);
+      delay(TURNING_TIME + 50);
+      leftMotor.stop();
+      rightMotor.stop();
+      return;
+    } else { //if all else fails, its Green
+      led.setColor(0,255,0);
+      led.show();
+      //execute RIGHT TURN
+      leftMotor.run(-motorSpeed);
+      rightMotor.run(-motorSpeed);
+      delay(TURNING_TIME);
+      leftMotor.stop();
+      rightMotor.stop();
+      return;
+    }
+  }
+}
+
+//---- Control Flow ----
+void setup(){
+  int size = sizeof(startup_duration) / sizeof(int);
+    for (int note = 0; note < size; note++) {
+      //to calculate the note duration, take one second divided by the note type.
+      //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
+      int duration = 1000 / startup_duration[note];
+      buzzer.tone(startup[note], duration);
+      //to distinguish the notes, set a minimum time between them.
+      int pauseBetweenNotes = duration * 1.10;
+      delay(pauseBetweenNotes);
+      //stop the tone playing:
+      buzzer.noTone();
+    }
+    //
+  //led set-up
+  led.setpin(13);
+  led.setColor(0, 0, 0); //set RGB LED to OFF
+  led.show();
+  
+  //Setup the outputs for Select Input 1A and Select Input 1B of the decoder chip
+  pinMode(input_1A,OUTPUT);
+  pinMode(input_1B,OUTPUT);    
+
+  //Begin serial communication -- ONLY USE FOR DEBUGGING
+  Serial.begin(9600);
+}
+
+void loop(){
+  int sensorState = lineFinder.readSensors();
+  if (sensorState != S1_OUT_S2_OUT){
+    leftMotor.stop();
+    rightMotor.stop();
+    getColourData(colourArray);
+    determineColour(colourArray);
+    delay(10);
+  } else {
+    leftMotor.run(-motorSpeed);
+    rightMotor.run(motorSpeed);
+    gostraightpls();
+    delay(50);
+  }
+}
